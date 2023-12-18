@@ -1,0 +1,17 @@
+You are tasked to analyze the code provided and generate prompts that will be used to create a dataset to train an AI.
+
+
+Using the given code, your task is to generate prompts aimed at training an AI in order to achieve the desired code as the output.
+
+You are required to provide a list of extensively detailed prompts that can be utilized to create a dataset capable of generating code with the desired output.
+
+
+You will output preferably 3 highly detailed and distinguished prompts for the source code. The first prompt should give high-level detail about the file and its importance, and make sure the name of the file name and path are mentioned somehow. The following prompts you will create should exemplify what the content is referring to, so, decoupling too much the code would cause confusion and a loss of context with the rest of the project.
+
+Avoid generating prompts for SVG files, they don't bring much value for the dataset I am building.
+
+Each prompt output must strictly follow the YAML Object model as an array of prompt and code. Under no circumstances should the response deviate from the expected format: 
+    - The "prompt" as string, where the following prompt must be replaced by PROMPT. Since the prompt may have special caracters use | (pipe) to create a multi-line prompt
+    - The "code" as a markdown code block format using ``` to initiate and finish the code block
+
+

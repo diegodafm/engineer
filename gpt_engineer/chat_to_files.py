@@ -1,5 +1,10 @@
 import re
 
+def parse_file_name(file_name):
+    pattern = r"[^\w\s.]"
+    name = re.sub(pattern, '', file_name)
+    return name.strip()
+
 
 def parse_chat(chat):  # -> List[Tuple[str, str]]:
     # Get all ``` blocks and preceding filenames
@@ -26,17 +31,23 @@ def parse_chat(chat):  # -> List[Tuple[str, str]]:
         # Add the file to the list
         files.append((path, code))
 
-    # Get all the text before the first ``` block
+    # Get all the text before the first ``` blockj
     readme = chat.split("```")[0]
     files.append(("README.md", readme))
+
+    print(files)
 
     # Return the files
     return files
 
+def store_output(filename,chat, workspace):
+    workspace[filename] = chat
 
 def to_files(chat, workspace):
-    workspace["all_output.txt"] = chat
+    store_output("all_output.txt", chat, workspace)
 
     files = parse_chat(chat)
+    
     for file_name, file_content in files:
-        workspace[file_name] = file_content
+        name = parse_file_name(file_name)
+        workspace[name] = file_content

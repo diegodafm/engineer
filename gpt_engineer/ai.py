@@ -23,7 +23,7 @@ class TokenUsage:
 
 
 class AI:
-    def __init__(self, model="gpt-4", temperature=0.1):
+    def __init__(self, model="davinci:ft-personal-2023-08-07-17-15-13", temperature=0.1):
         self.temperature = temperature
         self.model = model
 
@@ -139,6 +139,46 @@ class AI:
                     n_tokens += -1  # role is always required and always 1 token
         n_tokens += 2  # every reply is primed with <im_start>assistant
         return n_tokens
+    
+    def create_completion(self, tuned_model: str, prompt:str):
+        message = [{"role": "user", "content": prompt}]
+        print(message)
+        aaa = []        
+        response = openai.ChatCompletion.create(
+            messages=message,
+            stream=True,
+            # model="gpt-3.5-turbo",
+            model=self.model,
+            temperature=self.temperature,
+        )
+
+        chat = []
+        for chunk in response:
+            delta = chunk["choices"][0]["delta"]  # type: ignore
+            msg = delta.get("content", "")
+            print(msg, end="")
+            chat.append(msg)
+        # print()
+        aaa += [{"role": "assistant", "content": "".join(chat)}]
+        logger.debug(f"Chat completion finished: {aaa}")
+
+        # self.update_token_usage_log(
+        #     messages=messages, answer="".join(chat), step_name=step_name
+        # )
+
+        print(aaa)
+
+        return chat
+
+
+        # result = openai.Completion.create(model=tuned_model, prompt=prompt, temperature=self.temperature, max_tokens=250000)
+        if result and result.choices:
+            print(result)
+            completion = result.choices[0].text.strip()  # Extract the generated text from the result
+            return completion
+        else:
+            return ''
+            # print("No completion generated or response is invalid.")
 
 
 def fallback_model(model: str) -> str:

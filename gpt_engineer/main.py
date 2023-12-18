@@ -58,8 +58,8 @@ def main(
         messages = step(ai, dbs)
         dbs.logs[step.__name__] = json.dumps(messages)
 
-    if collect_consent():
-        collect_learnings(model, temperature, steps, dbs)
+    # if collect_consent():
+    #     collect_learnings(model, temperature, steps, dbs)
 
     dbs.logs["token_usage"] = ai.format_token_usage_log()
 

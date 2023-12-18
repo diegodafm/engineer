@@ -1,17 +1,64 @@
+import ast
 import inspect
 import json
+import yaml
 import re
 import subprocess
-
+import os
 from enum import Enum
 from typing import List
 
 from termcolor import colored
 
 from gpt_engineer.ai import AI
-from gpt_engineer.chat_to_files import to_files
+from gpt_engineer.chat_to_files import to_files,store_output
 from gpt_engineer.db import DBs
 from gpt_engineer.learning import human_input
+
+FINE_TUNED_MODEL = "davinci"
+YOUR_PROMPT="components/wizard/wizardStep1/Step1.tsx ->"
+
+def yaml_to_jsonl(yaml_data, jsonl_file_path):
+    try:
+        # Transform YAML data to JSONL format
+
+        with open(jsonl_file_path, 'a') as file:
+            for item in yaml_data:
+                prompt = item.get('prompt')
+                code = item.get('code')
+
+                json_obj = {
+                    "input_text": prompt,
+                    "output_text": code
+                }
+                json_line = json.dumps(json_obj)
+                file.write(json_line + '\n')
+
+                
+        
+        print(f"Successfully converted YAML to JSONL. Output written to '{jsonl_file_path}'.")
+    except FileNotFoundError:
+        print(f"The file '{yaml_file_path}' was not found.")
+    except yaml.YAMLError as e:
+        print(f"Error reading the YAML file: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def read_yaml_array(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            yaml_content = yaml.safe_load(file)
+            print("YAML file content:")
+            for item in yaml_content:
+                print(yaml.dump(item, default_flow_style=False))
+            return yaml_content
+    except FileNotFoundError:
+        print(f"The file '{file_path}' was not found.")
+        return None
+    except yaml.YAMLError as e:
+        print(f"Error reading the YAML file: {e}")
+        return None
+
 
 
 def setup_sys_prompt(dbs: DBs) -> str:
@@ -40,14 +87,101 @@ def curr_fn() -> str:
     """Get the name of the current function"""
     return inspect.stack()[1].function
 
+def openai_cli_command(command):
+    try:
+        subprocess.run(command, check=True, shell=True)
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred: {e}")
 
 # All steps below have the signature Step
+def validate(ai: AI, dbs: DBs) -> List[dict]:
+    folder_path = 'D:\dev\dev-ia\src\pages\wizard\wizardStep3'
+    
+    output_folder = 'projects/my-new-project/project_data'
+    output_file = os.path.join(output_folder, 'data.jsonl')
+
+    print('PREPARE DATA FOR FINE-TUNING')
+    openai_cli_command("openai tools fine_tunes.prepare_data -f " + output_file)
+
+
+def load(ai: AI, dbs: DBs) -> List[dict]:
+    
+    output_folder = 'projects/my-new-project/project_data'
+    output_file = os.path.join(output_folder, 'data.jsonl')
+
+    print('PREPARE DATA FOR FINE-TUNING')
+    openai_cli_command("openai api fine_tunes.create -t "+output_file+" -m "+FINE_TUNED_MODEL)
+
+def create(ai: AI, dbs: DBs) -> List[dict]:
+    response = ai.create_completion(tuned_model=FINE_TUNED_MODEL, prompt=YOUR_PROMPT)
+    print(response)
+    
+
+def collect(ai: AI, dbs: DBs) -> List[dict]:
+    folder_path = 'D:\dev\dev-ia\src'
+    
+    output_folder = 'projects/my-new-project/project_data'
+    output_file = os.path.join(output_folder, 'data.jsonl')
+
+    # print('PREPARE DATA FOR FINE-TUNING')
+    # openai_cli_command("openai tools fine_tunes.prepare_data -f " + output_file)
+
+    # openai_cli_command("openai api fine_tunes.create -t " + output_file + " -m "+ FINE_TUNED_MODEL)
+    
+    os.makedirs(output_folder, exist_ok=True)
+
+    print("project path", os.path.abspath(folder_path))
+    print("destination path", os.path.abspath(output_file))
+
+    open(output_file, 'w').close()
+    user_input = get_prompt(dbs)
+    
+    
+
+    with open(output_file, 'w') as output:
+        for root, _, files in os.walk(folder_path):
+            for file_name in files:
+                if file_name.lower().endswith(".svg"):
+                    print("file ignored", file_name)
+                else: 
+                    file_path = os.path.join(root, file_name)
+                    print('current file:' + file_path)
+                    with open(file_path, 'r') as file:
+                    
+                        file_content = file.read()
+                        # content_without_spaces = file_content.replace("\n", " ").replace("\"", "'")
+                        prompt= file_content
+                        # prompt= "what the file '"+file_name+ "' with the content below is refering to: \n ```\n "+content_without_spaces+" \n```"
+                        messages = [ai.fsystem(dbs.preprompts["analist"])]
+                        response = ai.next(messages, prompt, step_name=curr_fn())
+                        # prompt= "provide a considerable explanation of content of file '"+file_name+ "' is refering to: \n ```\n "+file_content+" \n```"
+                        # response = ai.create_completion(tuned_model=FINE_TUNED_MODEL, prompt=prompt)
+
+                        output_file_name = "prompts.txt"
+
+                        store_output(output_file_name, messages[-1]["content"], dbs.workspace)
+
+                    try:
+                        with open('projects/my-new-project/workspace/prompts.txt', 'r', encoding='utf-8') as file:
+                            data = yaml.full_load(file)
+
+                        if data:
+                            yaml_to_jsonl(data, 'projects/my-new-project/project_data/prompts.jsonl')
+                        
+                        print("Success! file path: " + file_path)    
+                    except ValueError as e:
+                        print("Error: Invalid input." + file_path)
 
 
 def simple_gen(ai: AI, dbs: DBs) -> List[dict]:
     """Run the AI on the main prompt and save the results"""
     messages = ai.start(setup_sys_prompt(dbs), get_prompt(dbs), step_name=curr_fn())
     to_files(messages[-1]["content"], dbs.workspace)
+    return messages
+
+def project_details(ai: AI, dbs: DBs) -> List[dict]:
+    """Run the AI on the main prompt and save the results"""
+    messages = [ai.fsystem(dbs.preprompts["project"])]
     return messages
 
 
@@ -284,11 +418,28 @@ class Config(str, Enum):
     EXECUTE_ONLY = "execute_only"
     EVALUATE = "evaluate"
     USE_FEEDBACK = "use_feedback"
+    LOAD= "load"
+    CREATE= "create"
+    COLLECT= "collect"
+    VALIDATE= "validate"
 
 
 # Different configs of what steps to run
 STEPS = {
+    Config.VALIDATE: [
+        validate,
+    ],    
+    Config.COLLECT: [
+        collect,
+    ],    
+    Config.LOAD: [
+        load,
+    ],    
+    Config.CREATE: [
+        create,
+    ],    
     Config.DEFAULT: [
+        project_details,
         clarify,
         gen_clarified_code,
         gen_entrypoint,
